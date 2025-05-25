@@ -146,6 +146,13 @@ def setup_logger(today: object, log_dir: object) -> object:
         error_handler.setLevel(logging.ERROR)
         error_handler.setFormatter(formatter)
         logger.addHandler(error_handler)
+
+        # ✅ Airflow UI 로그 (stdout)
+        airflow_handler = logging.StreamHandler()  # stdout용 핸들러
+        airflow_handler.setLevel(logging.INFO)
+        airflow_handler.setFormatter(formatter)
+        logger.addHandler(airflow_handler)
+
     return logger
 
 # ✅ 공통 컬럼 세팅 함수
@@ -498,21 +505,73 @@ def run_kosis_process_logging(execute_dates, config, today, days_back, pool, log
 # ✅ main 함수
 # kosis_config.ini 설정 불러오기, 날짜 계산, 로거 설정, DB pool 생성
 # 초기 COMPLETE_YN = 'N' 설정 후 수집 프로세스 실행
-def main():
+# def main():
+#
+#     config = configparser.ConfigParser()
+#     config.read("/Users/dongbin/airflow/dags/scripts/kosis_config/config.ini", encoding="utf-8")
+#
+#     execute_raw = config.get("DEFAULT", "execute_date", fallback="")
+#     base_date = datetime.strptime(execute_raw.strip(), "%Y-%m-%d") if execute_raw else datetime.now()
+#
+#     today = datetime.now().strftime("%Y%m%d")  # YYYYMMDD 형식
+#     log_dir = config.get("DEFAULT", "log_dir")
+#
+#     max_workers_str = config.get("DEFAULT", "max_workers", fallback="10").strip()
+#     max_workers = int(max_workers_str) if max_workers_str else 15
+#
+#     # ✅ 로거 먼저 세팅해야 이후 logging 가능
+#     logger = setup_logger(today, log_dir)
+#
+#     execute_dates = [
+#         (base_date - timedelta(days=offset)).strftime("%Y-%m-%d")
+#         for offset in reversed(range(1))
+#     ]
+#
+#     # 💡 실행일 기준으로 days_back일 전부터 포함 (예: 2025-05-20 기준 6일 전 → 2025-05-14 포함)
+#     days_back_str = config.get("DEFAULT", "days_back", fallback="6").strip()
+#     days_back = int(days_back_str) if days_back_str else 6
+#
+#     # ✅ Oracle DB 연결 (최초 1회)
+#     pool = oracledb.SessionPool(
+#         user=config.get("DB", "user"),
+#         password=config.get("DB", "password"),
+#         dsn=config.get("DB", "dsn"),
+#         min=config.getint("DB", "min"),
+#         max=config.getint("DB", "max"),
+#         increment=config.getint("DB", "increment"),
+#         encoding=config.get("DB", "encoding")
+#     )
+#     connection = get_connection_with_retry(pool)
+#
+#     # ✅ 최초 1회 상태 초기화 (COMPLETE_YN = 'N', Z_REG_DTM 포함)
+#     upsert_complete_flag(connection, today, 'N', is_init=True, logger=logger)
+#     logger.info("📍 상태 초기화 완료 (COMPLETE_YN = 'N', Z_REG_DTM 최신화)")
+#     connection.close()
+#
+#     run_kosis_process_logging(execute_dates, config, today, days_back, pool, logger, max_workers)
 
+def main(execute_date=None, days_back=None):
     config = configparser.ConfigParser()
     config.read("/Users/dongbin/airflow/dags/scripts/kosis_config/config.ini", encoding="utf-8")
 
-    execute_raw = config.get("DEFAULT", "execute_date", fallback="")
-    base_date = datetime.strptime(execute_raw.strip(), "%Y-%m-%d") if execute_raw else datetime.now()
-
-    today = datetime.now().strftime("%Y%m%d")  # YYYYMMDD 형식
     log_dir = config.get("DEFAULT", "log_dir")
 
+    # ✅ 기본값 fallback 구조
+    if not execute_date:
+        execute_raw = config.get("DEFAULT", "execute_date", fallback="")
+        base_date = datetime.strptime(execute_raw.strip(), "%Y-%m-%d") if execute_raw else datetime.now()
+    else:
+        base_date = datetime.strptime(execute_date, "%Y-%m-%d")
+
+    if not days_back:
+        days_back_str = config.get("DEFAULT", "days_back", fallback="6").strip()
+        days_back = int(days_back_str) if days_back_str else 6
+    else:
+        days_back = int(days_back)
+
+    today = datetime.now().strftime("%Y%m%d")
     max_workers_str = config.get("DEFAULT", "max_workers", fallback="10").strip()
     max_workers = int(max_workers_str) if max_workers_str else 15
-
-    # ✅ 로거 먼저 세팅해야 이후 logging 가능
     logger = setup_logger(today, log_dir)
 
     execute_dates = [
@@ -520,11 +579,6 @@ def main():
         for offset in reversed(range(1))
     ]
 
-    # 💡 실행일 기준으로 days_back일 전부터 포함 (예: 2025-05-20 기준 6일 전 → 2025-05-14 포함)
-    days_back_str = config.get("DEFAULT", "days_back", fallback="6").strip()
-    days_back = int(days_back_str) if days_back_str else 6
-
-    # ✅ Oracle DB 연결 (최초 1회)
     pool = oracledb.SessionPool(
         user=config.get("DB", "user"),
         password=config.get("DB", "password"),
@@ -535,8 +589,6 @@ def main():
         encoding=config.get("DB", "encoding")
     )
     connection = get_connection_with_retry(pool)
-
-    # ✅ 최초 1회 상태 초기화 (COMPLETE_YN = 'N', Z_REG_DTM 포함)
     upsert_complete_flag(connection, today, 'N', is_init=True, logger=logger)
     logger.info("📍 상태 초기화 완료 (COMPLETE_YN = 'N', Z_REG_DTM 최신화)")
     connection.close()
