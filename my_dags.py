@@ -23,7 +23,7 @@ with DAG(
     dag_id='auto_collect_kosis_statstics_dag',
     default_args=default_args,
     description='자동 수집된 통계청 KOSIS 데이터를 Oracle DB에 저장',
-    schedule_interval='30 13 * * *',  # ✅ UTC 04:30 = KST 13:30
+    schedule_interval='27 13 * * *',  # ✅ UTC 04:30 = KST 13:30
     start_date=datetime(2024, 1, 1, 13, 30, tzinfo=local_tz),  # ✅ tzinfo는 Asia/Seoul
     catchup=False,
     tags=['kosis', 'daily', 'oracle']

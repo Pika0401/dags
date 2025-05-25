@@ -113,7 +113,8 @@ from zoneinfo import ZoneInfo
 from logging.handlers import TimedRotatingFileHandler
 import urllib3
 import oracledb
-import kosis_reader as k_r
+
+from scripts import kosis_reader as k_r
 
 urllib3.disable_warnings()
 
@@ -500,7 +501,7 @@ def run_kosis_process_logging(execute_dates, config, today, days_back, pool, log
 def main():
 
     config = configparser.ConfigParser()
-    config.read("kosis_config/config.ini", encoding="utf-8")
+    config.read("/Users/dongbin/airflow/dags/scripts/kosis_config/config.ini", encoding="utf-8")
 
     execute_raw = config.get("DEFAULT", "execute_date", fallback="")
     base_date = datetime.strptime(execute_raw.strip(), "%Y-%m-%d") if execute_raw else datetime.now()
